@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, Award, Phone, Home, Car as CarIcon, Plane, Tag, Text, ListTodo, Users, Stethoscope } from 'lucide-react';
+import { Calendar, Award, Phone, Home, Car as CarIcon, Plane, Tag, Text, ListTodo, Users, Stethoscope, CheckSquare, Clock } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 
 // A custom icon for Golf since lucide-react doesn't have one
@@ -9,7 +9,6 @@ const GolfIcon = () => (
     </svg>
 );
 
-
 const App = () => {
   // ❗ IMPORTANT: REPLACE THIS WITH YOUR NEW DEPLOYED SCRIPT URL FROM STEP 2
   const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwERClodyK_bU69wHDGGscqDE7hRxd-WUFT0ezWSHJCCzriTp7XbQO20vq0rIKu1XR0NQ/exec';
@@ -17,8 +16,16 @@ const App = () => {
   const [submissionStatus, setSubmissionStatus] = useState(null);
   const [isAllDay, setIsAllDay] = useState(false);
   
-  const { register, handleSubmit, formState: { errors }, reset, watch } = useForm();
+  // Set default values for daysOut and taskTiming
+  const { register, handleSubmit, formState: { errors }, reset, watch } = useForm({
+    defaultValues: {
+      daysOut: 5,
+      taskTiming: 'before'
+    }
+  });
+  
   const taskName = watch('taskName');
+  const watchCreateTask = watch('createTask');
 
   const taskTypes = [
     { name: 'Athlete Race', value: 'Athlete Race', icon: <Award /> },
@@ -52,6 +59,13 @@ const App = () => {
         isARace: data.taskName === 'Athlete Race' ? data.isARace : undefined, 
       };
 
+      // Add the task reminder data if the user checked the box
+      if (data.createTask) {
+        payload.createTask = true;
+        payload.daysOut = data.daysOut;
+        payload.taskTiming = data.taskTiming;
+      }
+
       // Use the 'fetch' API to send data to the Google Script
       await fetch(SCRIPT_URL, {
         method: 'POST',
@@ -65,7 +79,7 @@ const App = () => {
       setSubmissionStatus('success');
       // Reset the form and clear status message after 3 seconds
       setTimeout(() => {
-        reset();
+        reset({ createTask: false, daysOut: 5, taskTiming: 'before' });
         setIsAllDay(false);
         setSubmissionStatus(null);
       }, 3000);
@@ -100,7 +114,12 @@ const App = () => {
         .datetime-container { display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem; flex-wrap: wrap; }
         .all-day-toggle { display: flex; align-items: center; margin-top: 0.5rem; margin-bottom: 1rem; }
         .all-day-toggle input[type="checkbox"] { margin-right: 0.5rem; height: 1.25rem; width: 1.25rem; cursor: pointer; }
-        .checkbox-label { font-weight: normal; color: #374151; margin: 0; }
+        
+        /* New CSS for the Task feature */
+        .flex-group { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+        .checkbox-container { display: flex; align-items: center; margin-bottom: 1.5rem; background-color: #f8fafc; padding: 1rem; border-radius: 0.75rem; border: 1px solid #e2e8f0; }
+        .checkbox-input { width: 1.25rem; height: 1.25rem; margin-right: 0.75rem; cursor: pointer; accent-color: #2563eb; }
+        .checkbox-label { color: #374151; font-weight: 600; cursor: pointer; display: flex; align-items: center; margin: 0; }
       `}</style>
 
       <div className="main-container">
@@ -131,7 +150,7 @@ const App = () => {
               <div className="form-group">
                 <div className="all-day-toggle" style={{marginTop: 0, marginBottom: 0}}>
                   <input type="checkbox" id="isARace" {...register('isARace')} />
-                  <label htmlFor="isARace" className="checkbox-label">Is this an 'A' Race? (Adds post-race reflection)</label>
+                  <label htmlFor="isARace" className="checkbox-label" style={{fontWeight: 'normal'}}>Is this an 'A' Race? (Adds post-race reflection)</label>
                 </div>
               </div>
             )}
@@ -141,7 +160,7 @@ const App = () => {
               <label htmlFor="taskDate" className="form-label"><Calendar /> Date and Time</label>
               <div className="all-day-toggle">
                 <input type="checkbox" id="allDay" checked={isAllDay} onChange={(e) => setIsAllDay(e.target.checked)} />
-                <label htmlFor="allDay" className="checkbox-label">All-Day Event</label>
+                <label htmlFor="allDay" className="checkbox-label" style={{fontWeight: 'normal'}}>All-Day Event</label>
               </div>
               
               <div className="datetime-container">
@@ -159,6 +178,41 @@ const App = () => {
               <label htmlFor="description" className="form-label"><Text /> Detailed Description</label>
               <textarea id="description" rows="4" {...register('description')} className="form-input"></textarea>
             </div>
+
+            {/* NEW: Checkbox to trigger Task Creation */}
+            <div className="checkbox-container">
+              <input type="checkbox" id="createTask" {...register('createTask')} className="checkbox-input" />
+              <label htmlFor="createTask" className="checkbox-label">
+                <CheckSquare style={{marginRight: '0.5rem', width: '1.25rem'}} /> Create task reminder?
+              </label>
+            </div>
+
+            {/* NEW: Conditional Task Timing Fields */}
+            {watchCreateTask && (
+              <div className="flex-group">
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="daysOut" className="form-label"><Clock /> Days</label>
+                  <input
+                    type="number"
+                    id="daysOut"
+                    {...register('daysOut', { 
+                      valueAsNumber: true,
+                      required: 'Please specify how many days',
+                      min: { value: 0, message: 'Cannot be negative' }
+                    })}
+                    className="form-input"
+                  />
+                  {errors.daysOut && <p className="error-message">{errors.daysOut.message}</p>}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label htmlFor="taskTiming" className="form-label">Timing</label>
+                  <select id="taskTiming" {...register('taskTiming')} className="form-input">
+                    <option value="before">Before Event</option>
+                    <option value="after">After Event</option>
+                  </select>
+                </div>
+              </div>
+            )}
 
             {/* Submit Button */}
             <button type="submit" className="submit-button" disabled={submissionStatus === 'loading'}>
